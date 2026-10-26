@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: cybersoc-api
+    name: cybersoc-backend
     runtime: node
     plan: free
     buildCommand: npm ci --ignore-scripts
