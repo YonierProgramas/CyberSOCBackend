@@ -175,8 +175,8 @@ test('H-11: límite mutaciones/IP acotado y Retry-After, sin confiar en X-Forwar
   for (let i = 0; i < 20; i += 1) await app.request('/v1/me/preferences', { method: 'PATCH', body: {} });
   const limited = await app.request('/v1/me/preferences', { method: 'PATCH', body: { theme: 'dark' } });
   assert.equal(limited.status, 429); assert.ok(Number(limited.headers.get('retry-after')) > 0);
-  for (let i = 0; i < 39; i += 1) await app.request('/healthz');
-  const ipLimited = await app.request('/healthz', { headers: { 'X-Forwarded-For': '203.0.113.1' } });
+  for (let i = 0; i < 39; i += 1) await app.request('/v1/me');
+  const ipLimited = await app.request('/v1/me', { headers: { 'X-Forwarded-For': '203.0.113.1' } });
   assert.equal(ipLimited.status, 429);
 });
 test('P1/P2, actividad opcional y rutas con datos privados no se publican ni se loguean', async t => {

@@ -4,6 +4,7 @@ import type { Identity } from './auth.js';
 import { ApiError, unavailable } from './errors.js';
 import { CursorStore, comparePositions, type Position } from './cursor.js';
 import { DatabaseError, Postgrest } from './upstream.js';
+import { acceptedDownloadUrl } from './release-url.js';
 import { output, defaults, profileRow, preferenceRow, consentRow, purposeRow, deviceRow, revokedRow, downloadRow, releaseRow,
   type consentInput, type preferencePatch } from './schemas.js';
 
@@ -123,14 +124,8 @@ export class ApiService {
     const release = output(z.array(releaseRow).max(1), reply.data)[0];
     if (!release) throw new ApiError(503, 'RELEASE_UNAVAILABLE');
     const asset = release.release_assets[0]!;
-    let valid = false;
-    try {
-      const url = new URL(asset.download_url);
-      valid = asset.platform_code === platform && asset.download_url.startsWith(this.config.releasePrefix)
-        && url.origin === 'https://github.com' && !url.username && !url.password && !url.search && !url.hash
-        && url.href.startsWith(this.config.releasePrefix) && url.pathname.slice(new URL(this.config.releasePrefix).pathname.length).split('/').length >= 2;
-    } catch { /* Solo un enlace de release del repo autorizado. */ }
-    if (!valid) throw new ApiError(503, 'RELEASE_UNAVAILABLE');
+    if (asset.platform_code !== platform || !asset.download_url.startsWith(this.config.releasePrefix)
+      || !acceptedDownloadUrl(asset.download_url)) throw new ApiError(503, 'RELEASE_UNAVAILABLE');
     return { release, asset };
   }
   async latest(platform: 'windows-x64', signal: AbortSignal) {

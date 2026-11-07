@@ -73,6 +73,7 @@ export function createApiServer(options: ServerOptions = {}) {
   const now = options.now ?? Date.now;
   const verifier = config ? new JwtVerifier(config, fetcher, now) : undefined;
   const limits = new RateLimits(now);
+  const healthLimits = new RateLimits(now, 1000);
   const service = config ? new ApiService(config, new Postgrest(config, fetcher), new CursorStore(now)) : undefined;
   const logger = options.logger ?? (value => console.log(JSON.stringify(value)));
   const server = createServer({ maxHeaderSize: 16384, connectionsCheckingInterval: 1000 }, async (request, response) => {
@@ -95,7 +96,10 @@ export function createApiServer(options: ServerOptions = {}) {
     response.setHeader('X-Request-Id', requestId);
     response.setHeader('Vary', 'Origin');
     const origin = request.headers.origin;
-    if (config && origin === config.portalOrigin) response.setHeader('Access-Control-Allow-Origin', origin);
+    if (config && origin === config.portalOrigin) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+      response.setHeader('Access-Control-Expose-Headers', 'Retry-After');
+    }
     try {
       const operation = async (): Promise<{ status: number; body?: unknown }> => {
         const raw = request.url ?? '/';
@@ -112,7 +116,8 @@ export function createApiServer(options: ServerOptions = {}) {
           throw new ApiError(404, 'NOT_FOUND');
         }
         routeName = route.path;
-        limits.consume(`ip:${request.socket.remoteAddress ?? 'unknown'}`, 60);
+        // Health conserva su propia cuota: no consume ni depende del tráfico de cuenta.
+        (path === '/healthz' ? healthLimits : limits).consume(`ip:${request.socket.remoteAddress ?? 'unknown'}`, 60);
         if (request.method === 'OPTIONS' && config) {
           const requestedMethod = request.headers['access-control-request-method'] ?? '';
           const requestedHeaders = (request.headers['access-control-request-headers'] ?? '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
